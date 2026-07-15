@@ -9,22 +9,16 @@ func TestNewUniverse(t *testing.T) {
 	height := 5
 	u := NewUniverse(width, height)
 
-	if u.width != width {
-		t.Errorf("Expected width %d, got %d", width, u.width)
+	if u.Width() != width {
+		t.Errorf("Expected width %d, got %d", width, u.Width())
 	}
-	if u.height != height {
-		t.Errorf("Expected height %d, got %d", height, u.height)
-	}
-	if len(u.grid) != height {
-		t.Errorf("Expected slice height %d, got %d", height, len(u.grid))
-	}
-	if len(u.grid[0]) != width {
-		t.Errorf("Expected slice width %d, got %d", width, len(u.grid[0]))
+	if u.Height() != height {
+		t.Errorf("Expected height %d, got %d", height, u.Height())
 	}
 }
 
 func TestUniverseClone(t *testing.T) {
-	u := NewUniverse(5, 5)
+	var u Grid = NewUniverse(5, 5)
 	u.Set(2, 2, true)
 
 	clone := u.Clone()
@@ -41,13 +35,12 @@ func TestUniverseClone(t *testing.T) {
 
 func TestToroidalWrap(t *testing.T) {
 	// 3x3 universe
-	u := NewUniverse(3, 3)
+	var u Grid = NewUniverse(3, 3)
 	// Place live cell at (0, 0)
 	u.Set(0, 0, true)
 
 	// Since it wraps around:
 	// (0,0)'s neighbors are all wrap-around:
-	// For example, cell at (2, 2) should see (0,0) as a neighbor.
 	// Let's check neighbor counts from perspective of cells surrounding the wrapped edges:
 	if count := u.Neighbors(2, 2); count != 1 {
 		t.Errorf("Expected (2,2) to have 1 wrapped neighbor (0,0), got %d", count)
@@ -67,12 +60,13 @@ func TestConwayRulesSimple(t *testing.T) {
 	// Blinker is a period-2 oscillator:
 	// Horiz: (1,2), (2,2), (3,2)
 	// Vert after 1 generation: (2,1), (2,2), (2,3)
-	u := NewUniverse(5, 5)
+	var u Grid = NewUniverse(5, 5)
 	u.Set(1, 2, true)
 	u.Set(2, 2, true)
 	u.Set(3, 2, true)
 
-	nextU := u.Next()
+	engine := NewEvolutionEngine()
+	nextU := engine.Evolve(u)
 
 	// (2,2) survives (2 neighbors)
 	if !nextU.Get(2, 2) {
@@ -94,21 +88,22 @@ func TestConwayRulesSimple(t *testing.T) {
 	}
 
 	// Another transition should bring it back
-	nextNextU := nextU.Next()
+	nextNextU := engine.Evolve(nextU)
 	if !nextNextU.Get(1, 2) || !nextNextU.Get(2, 2) || !nextNextU.Get(3, 2) {
 		t.Error("Blinker should oscillate back to original horizontal state")
 	}
 }
 
 func TestInsertPatternValidation(t *testing.T) {
-	u := NewUniverse(10, 10)
+	var u Grid = NewUniverse(10, 10)
 
 	// Pattern that fits
 	patternFits := [][]bool{
 		{true, true},
 		{true, true},
 	}
-	err := u.InsertPattern(patternFits)
+	initializer := NewPatternInitializer("TestPattern", patternFits)
+	err := initializer.Initialize(u)
 	if err != nil {
 		t.Errorf("Expected pattern to fit, got error: %v", err)
 	}
@@ -117,7 +112,8 @@ func TestInsertPatternValidation(t *testing.T) {
 	patternTooBig := [][]bool{
 		make([]bool, 11),
 	}
-	err = u.InsertPattern(patternTooBig)
+	tooBigInitializer := NewPatternInitializer("TooBigPattern", patternTooBig)
+	err = tooBigInitializer.Initialize(u)
 	if err == nil {
 		t.Error("Expected error for too big pattern, got nil")
 	}
